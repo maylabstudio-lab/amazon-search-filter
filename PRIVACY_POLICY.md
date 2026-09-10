@@ -2,7 +2,7 @@
 
 最終更新日: 2026年9月6日
 
-公開URL（Chrome Web Store 掲載用）: https://maylabstudio-lab.github.io/amazon-search-extension/
+公開URL（Chrome Web Store 掲載用）: https://maylabstudio-lab.github.io/amazon-search-filter/
 （内容は `docs/index.html` と同一。片方を更新したらもう片方も更新すること。）
 
 ## 収集する情報

@@ -67,8 +67,8 @@ Amazon.co.jpの商品名規約（`[ブランド名] + [商品名] + [仕様・�
 このリポジトリをクローンするか、GitHubの「Code」からZIPでダウンロードして展開します。
 
 ```bash
-git clone https://github.com/maylabstudio-lab/amazon-search-extension.git
-cd amazon-search-extension
+git clone https://github.com/maylabstudio-lab/amazon-search-filter.git
+cd amazon-search-filter
 ```
 
 ### 2. Chromeに読み込む
@@ -76,7 +76,7 @@ cd amazon-search-extension
 1. Google Chromeで `chrome://extensions` を開きます。
 2. 右上の「デベロッパーモード」を有効にします。
 3. 「パッケージ化されていない拡張機能を読み込む」をクリックします。
-4. `manifest.json` が入っている `amazon-search-extension` フォルダを選択します。
+4. `manifest.json` が入っている `amazon-search-filter` フォルダを選択します。
 5. 拡張機能一覧に「Amazon Search Filter」が表示されれば導入完了です。
 
 ## 使い方
@@ -118,7 +118,7 @@ Amazon.co.jp を開くと、右下に折りたためる「正規品フィルタ�
 ## ファイル構成
 
 ```text
-amazon-search-extension/
+amazon-search-filter/
 ├── manifest.json      # 拡張機能の定義（storage 権限・content script・アイコン）
 ├── popup.html         # ポップアップのUI
 ├── popup.js           # 検索URL生成・設定の保存/復元・タブ遷移

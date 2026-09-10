@@ -44,7 +44,7 @@
 - [x] プレースホルダ値の排除（`ASSOCIATE_TAG` は空にして無効化）
 - [x] プライバシーポリシーを公開URLで参照可能にする
       - ソース: `docs/index.html`（GitHub Pages 用）
-      - 公開URL: `https://maylabstudio-lab.github.io/amazon-search-extension/`
+      - 公開URL: `https://maylabstudio-lab.github.io/amazon-search-filter/`
       - 有効化: GitHub リポジトリの Settings → Pages → Source を「Deploy from a branch」、
         Branch を `main` / フォルダ `/docs` にして保存。数分後に上記URLで表示される。
       - `PRIVACY_POLICY.md` を更新したら `docs/index.html` も合わせて更新する。
