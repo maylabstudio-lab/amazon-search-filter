@@ -4,6 +4,7 @@ const fulfilledCheckbox = document.getElementById("amazon-fulfilled");
 const directCheckbox = document.getElementById("amazon-direct");
 const discountSelect = document.getElementById("discount");
 const excludeSuspiciousCheckbox = document.getElementById("exclude-suspicious");
+const hideNoCartCheckbox = document.getElementById("hide-no-cart");
 const genuineEnabledCheckbox = document.getElementById("genuine-enabled");
 const genuineCategorySelect = document.getElementById("genuine-category");
 const showPanelCheckbox = document.getElementById("show-panel");
@@ -14,6 +15,7 @@ const SETTINGS_DEFAULTS = {
   amazonDirect: false,
   discount: "",
   excludeSuspicious: true,
+  hideNoCart: false,
   genuineEnabled: false,
   genuineCategory: "",
   showPanel: true,
@@ -36,6 +38,7 @@ function currentSettings() {
     amazonDirect: directCheckbox.checked,
     discount: discountSelect.value,
     excludeSuspicious: excludeSuspiciousCheckbox.checked,
+    hideNoCart: hideNoCartCheckbox.checked,
     genuineEnabled: genuineEnabledCheckbox.checked,
     genuineCategory: genuineCategorySelect.value,
     showPanel: showPanelCheckbox.checked,
@@ -47,6 +50,7 @@ function applySettings(settings) {
   directCheckbox.checked = settings.amazonDirect;
   discountSelect.value = settings.discount;
   excludeSuspiciousCheckbox.checked = settings.excludeSuspicious;
+  hideNoCartCheckbox.checked = settings.hideNoCart;
   genuineEnabledCheckbox.checked = settings.genuineEnabled;
   showPanelCheckbox.checked = settings.showPanel;
   // 保存済みカテゴリが辞書に存在しない場合に備えて存在チェック
@@ -87,6 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
     directCheckbox,
     discountSelect,
     excludeSuspiciousCheckbox,
+    hideNoCartCheckbox,
     genuineEnabledCheckbox,
     genuineCategorySelect,
     showPanelCheckbox,
@@ -94,28 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
     el.addEventListener("change", saveSettings);
   }
 });
-
-async function loadParameterDefinitions() {
-  const response = await fetch("parametor.txt");
-  if (!response.ok) {
-    throw new Error(`パラメータ定義を読み込めません: ${response.status}`);
-  }
-
-  const definitions = {};
-  const lines = (await response.text()).split(/\r?\n/);
-  for (const line of lines) {
-    const definition = line.trim();
-    if (!definition || definition.startsWith("--")) continue;
-
-    const separator = definition.indexOf("=");
-    if (separator <= 1 || !definition.startsWith("&")) continue;
-
-    const name = definition.slice(1, separator);
-    const value = decodeURIComponent(definition.slice(separator + 1));
-    definitions[name] = value;
-  }
-  return definitions;
-}
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -126,24 +109,16 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  // 「正規品」付加語とアソシエイトタグの付与は dictionary.js に集約
-  const url = new URL(buildSearchUrl(keyword, currentSettings()));
+  // 「正規品」付加語・アソシエイトタグ・発送元/直販/割引の絞り込みは dictionary.js に集約
+  const settings = currentSettings();
+  const url = new URL(buildSearchUrl(keyword, settings));
 
-  if (fulfilledCheckbox.checked) {
-    url.searchParams.set("rh", "p_6:AN1VRQENFRJNWY");
-  }
-
-  if (directCheckbox.checked) {
+  let directParam = null;
+  if (settings.amazonDirect) {
     const definitions = await loadParameterDefinitions();
-    const directParameter = Object.entries(definitions)[0];
-    if (directParameter) {
-      url.searchParams.set(directParameter[0], directParameter[1]);
-    }
+    directParam = Object.entries(definitions)[0] || null;
   }
-
-  if (discountSelect.value) {
-    url.searchParams.set("pct-off", `${discountSelect.value}-`);
-  }
+  applyResultFilters(url, settings, directParam);
 
   chrome.tabs.create({ url: url.href });
 });

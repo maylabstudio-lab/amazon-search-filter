@@ -26,5 +26,11 @@
       "css": ["content.css"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["parametor.txt"],
+      "matches": ["https://www.amazon.co.jp/*"]
+    }
   ]
 }

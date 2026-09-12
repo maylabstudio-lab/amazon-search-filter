@@ -127,21 +127,56 @@ const TITLE_POLICY = {
   // 先頭カッコの中身にこれらが含まれる場合も宣伝カッコとみなす。
   leadingPromoPhrases: [
     "令和最新", "令和", "最新版", "最新モデル", "最新型", "最新式", "新登場", "新発売", "業界最", "世界最",
-    "楽天", "期間限定", "数量限定", "本日限定", "当日限定", "タイムセール", "在庫処分", "在庫一掃",
+    "楽天", "期間限定", "数量限定", "本日限定", "当日限定", "限定", "タイムセール", "在庫処分", "在庫一掃",
     "送料無料", "即納", "即日発送", "あす楽", "訳あり", "大特価", "特価", "激安", "超特価",
     "ポイント消化", "ポイント消費", "話題", "人気", "売れ筋", "ランキング", "第1位", "NO.1", "No.1",
     "最安", "最強", "高コスパ", "コスパ最強", "爆売れ", "SNSで話題", "神",
     "高品質", "高級", "高性能", "高機能", "プロ仕様", "本格",
+    "Amazon.co.jp限定", "Amazon限定",
   ],
   // 先頭カッコ（【】[] （） 《》 〈〉 「」 『』）の中身がこの正規表現に当たれば宣伝カッコとみなす。
   // 「正規」「保証」「代理店」などは正規表記でも使われるため含めない。
+  // 「限定」「Amazon」はマーケットプレイス側の販売範囲を示すだけでメーカー名ではないため、
+  // ブランド名の代わりにここへ書かれているケースを宣伝カッコとして扱う。
   promoBracketPattern:
-    "(送料無料|あす楽|即日|翌日|タイムセール|ランキング|[0-9]+\\s*位|ポイント|クーポン|[0-9]+\\s*[%％]|OFF|割引|楽天|話題|人気|お得|数量限定|期間限定|本日限定|プレゼント|ギフト対応|爆買|神コスパ|最新|新型|20[0-9]{2}|令和)",
+    "(送料無料|あす楽|即日|翌日|タイムセール|ランキング|[0-9]+\\s*位|ポイント|クーポン|[0-9]+\\s*[%％]|OFF|割引|楽天|話題|人気|お得|限定|プレゼント|ギフト対応|爆買|神コスパ|最新|新型|20[0-9]{2}|令和|Amazon|amazon)",
+  // 検索キーワードが何であっても、商品名の先頭がこれらの「一般名称（カテゴリ名）」で
+  // 始まっていればメーカー名が無いとみなす。実際の検索結果で見つかった抜け漏れを
+  // 都度ここへ追記していく想定の、非網羅的なリスト。
+  genericLeadingNouns: [
+    // ケーブル・充電
+    "USBケーブル", "USB-Cケーブル", "USBCケーブル", "Type-Cケーブル", "タイプCケーブル",
+    "ライトニングケーブル", "充電ケーブル", "充電器", "急速充電器", "モバイルバッテリー", "バッテリー",
+    // 音響・イヤホン
+    "ワイヤレスイヤホン", "Bluetoothイヤホン", "ブルートゥースイヤホン", "イヤホン", "ヘッドホン", "ヘッドセット",
+    // スマホ・タブレット周辺
+    "スマホケース", "スマホカバー", "タブレットケース", "保護フィルム", "液晶保護フィルム", "ガラスフィルム",
+    // ファッション・日用品
+    "マスク", "サングラス", "腕時計", "リュック", "トートバッグ", "ショルダーバッグ", "財布", "ポーチ",
+    // 家電
+    "加湿器", "扇風機", "ドライヤー", "掃除機", "電気ケトル", "炊飯器", "空気清浄機",
+  ],
 };
 
+// 検索キーワードから「正規品」系の付加語を取り除き、商品名との比較に使う
+// 中心キーワードを返す（例:「モバイルバッテリー 正規品」→「モバイルバッテリー」）。
+function extractCoreKeyword(keyword) {
+  const genuineWords = new Set([
+    ...GENUINE_DICTIONARY.common.queries,
+    ...Object.values(GENUINE_DICTIONARY.categories).flatMap((c) => c.queries),
+  ]);
+  const tokens = String(keyword || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((w) => !genuineWords.has(w));
+  return tokens.join(" ").trim();
+}
+
 // 商品名が Amazon の表記規則に沿っていないと疑われるかを判定する。
+// searchKeyword を渡すと、商品名の先頭がメーカー名ではなく検索キーワードそのもの
+// （メーカー名の記載なし）で始まっていないかもあわせて確認する。
 // 戻り値: { violated: boolean, reason: string }
-function titleViolatesPolicy(title) {
+function titleViolatesPolicy(title, searchKeyword) {
   const t = String(title || "").trim();
   if (!t) return { violated: false, reason: "" };
 
@@ -177,6 +212,32 @@ function titleViolatesPolicy(title) {
     if (head.startsWith(p)) return { violated: true, reason: `先頭が「${p}」` };
   }
 
+  // 4. 先頭にメーカー名が無く、一般名称（検索キーワード、または既知のカテゴリ名）が
+  //    そのまま商品名の先頭に来ている（本来は「メーカー名＋商品名」の順のはず）。
+  //    先頭カッコに宣伝文句以外の中身（メーカー名など）がある場合はそれより後ろで
+  //    判定すると誤検知するため、カッコを含めた商品名全体の先頭で判定する。
+  //    全角/半角・大文字小文字などの表記ゆれで一致漏れしないよう NFKC で正規化してから比較する。
+  const normalize = (s) =>
+    s
+      .normalize("NFKC")
+      .replace(/\s+/g, "")
+      .toLowerCase();
+  const normalizedTitle = normalize(t);
+
+  const coreKeyword = extractCoreKeyword(searchKeyword);
+  if (coreKeyword && coreKeyword.length >= 2 && normalizedTitle.startsWith(normalize(coreKeyword))) {
+    return { violated: true, reason: `先頭にメーカー名がなく「${coreKeyword}」から始まる` };
+  }
+
+  // 検索キーワードが一般名称そのものとは限らない（例:「usbケーブル」で検索して
+  // 「充電ケーブル」から始まる商品名がヒットする）ため、検索語に関わらず既知の
+  // 一般名称（カテゴリ名）と先頭が一致するかも別途確認する。
+  for (const noun of TITLE_POLICY.genericLeadingNouns) {
+    if (normalizedTitle.startsWith(normalize(noun))) {
+      return { violated: true, reason: `先頭にメーカー名がなく一般名称「${noun}」から始まる` };
+    }
+  }
+
   return { violated: false, reason: "" };
 }
 
@@ -209,12 +270,59 @@ const ASSOCIATE_TAG = "";
 
 // キーワードと設定から Amazon.co.jp の検索URL文字列を組み立てる。
 // popup.js とページ内パネル（content.js）で共用。発送元・割引率などの追加条件は
-// 呼び出し側が返り値の URL に足す。
+// applyResultFilters() で付与する。
 function buildSearchUrl(keyword, settings) {
   const url = new URL("https://www.amazon.co.jp/s");
   url.searchParams.set("k", applyGenuineQuery(keyword, settings));
   if (ASSOCIATE_TAG) url.searchParams.set("tag", ASSOCIATE_TAG);
   return url.href;
+}
+
+// parametor.txt（Amazon直販商品への絞り込みパラメータの定義）を読み込む。
+// popup.html はページ自身が拡張機能オリジンなので相対パスで、ページ内パネル
+// （content.js）は amazon.co.jp 上で動くため chrome.runtime.getURL() で
+// 拡張機能内のURLに変換してから読み込む。
+async function loadParameterDefinitions() {
+  const url =
+    typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL
+      ? chrome.runtime.getURL("parametor.txt")
+      : "parametor.txt";
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`パラメータ定義を読み込めません: ${response.status}`);
+  }
+
+  const definitions = {};
+  const lines = (await response.text()).split(/\r?\n/);
+  for (const line of lines) {
+    const definition = line.trim();
+    if (!definition || definition.startsWith("--")) continue;
+
+    const separator = definition.indexOf("=");
+    if (separator <= 1 || !definition.startsWith("&")) continue;
+
+    const name = definition.slice(1, separator);
+    const value = decodeURIComponent(definition.slice(separator + 1));
+    definitions[name] = value;
+  }
+  return definitions;
+}
+
+// 「Amazonが発送する商品」「Amazon直販商品」「割引率」の絞り込み条件をURLへ反映する。
+// popup.js とページ内パネル（content.js）で共用。amazonDirect が有効なときは
+// 呼び出し側が事前に loadParameterDefinitions() で読み込んだ定義を directParam に渡す。
+function applyResultFilters(url, settings, directParam) {
+  const s = settings || {};
+  if (s.amazonFulfilled) {
+    url.searchParams.set("rh", "p_6:AN1VRQENFRJNWY");
+  }
+  if (s.amazonDirect && directParam) {
+    url.searchParams.set(directParam[0], directParam[1]);
+  }
+  if (s.discount) {
+    url.searchParams.set("pct-off", `${s.discount}-`);
+  }
+  return url;
 }
 
 // content_scripts / popup はグローバルを共有するため、明示的な export は不要。
@@ -226,8 +334,11 @@ if (typeof module !== "undefined" && module.exports) {
     ASSOCIATE_TAG,
     buildGenuineQueryWords,
     getExcludeWords,
+    extractCoreKeyword,
     titleViolatesPolicy,
     applyGenuineQuery,
     buildSearchUrl,
+    loadParameterDefinitions,
+    applyResultFilters,
   };
 }

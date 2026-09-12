@@ -129,7 +129,7 @@
   accent-color: #e36d2e;
 }
 
-#asf-panel .asf-opt-category {
+#asf-panel .asf-select {
   width: 100%;
   min-height: 32px;
   padding: 0 8px;
@@ -203,7 +203,7 @@
   }
 
   #asf-panel .asf-kw,
-  #asf-panel .asf-opt-category {
+  #asf-panel .asf-select {
     background: #17130f;
     border-color: #4b3f37;
     color: #e7dcd4;
