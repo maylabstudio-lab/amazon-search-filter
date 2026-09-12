@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Amazon Search Filter",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "商品名がAmazonの表記規約（ブランド名＋商品名＋仕様）に沿わない出品を検索結果で非表示にし、正規品に絞ります。",
   "permissions": ["storage"],
   "icons": {
