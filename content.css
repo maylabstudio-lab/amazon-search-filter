@@ -181,6 +181,13 @@
   text-decoration: underline;
 }
 
+#asf-panel .asf-affiliate-note {
+  margin: 6px 0 0;
+  color: #8a8f8c;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 @media (prefers-color-scheme: dark) {
   .asf-warning-label {
     border-color: #b3701f;
@@ -216,5 +223,9 @@
 
   #asf-panel .asf-support {
     color: #c79c82;
+  }
+
+  #asf-panel .asf-affiliate-note {
+    color: #8f857c;
   }
 }

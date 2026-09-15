@@ -274,6 +274,7 @@
       "  </select>",
       '  <div class="asf-panel-status" hidden></div>',
       '  <a class="asf-support" href="https://buymeacoffee.com/maylab" target="_blank" rel="noopener noreferrer">☕ 開発者を支援</a>',
+      '  <p class="asf-affiliate-note">本拡張機能はAmazonアソシエイト・プログラムを使用しています。</p>',
       "</div>",
     ].join("");
 

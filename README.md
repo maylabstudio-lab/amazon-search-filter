@@ -136,7 +136,7 @@ Amazon.co.jp を開くと、右下に折りたためる「正規品フィルタ�
 
 ## 一般公開（Chrome ウェブストア）
 
-公開手順・収益化の注意（Amazonアソシエイトを有効化する前に確認すべき点）・パッケージング方法は [RELEASE.md](RELEASE.md) にまとめています。
+公開手順・収益化の注意（Amazonアソシエイトの利用状況）・パッケージング方法は [RELEASE.md](RELEASE.md) にまとめています。
 
 - 提出用ZIP: `sh scripts/package.sh` → `dist/amazon-search-filter.zip`
 - アイコン再生成: `icons/icon.svg` を編集して `sh scripts/make-icons.sh`
@@ -163,7 +163,7 @@ amazon-search-filter/
 ## 注意事項
 
 - 現在の検索先はAmazon.co.jpです。
-- v1 はAmazonアソシエイト（アフィリエイト）を利用していません。`dictionary.js` の `ASSOCIATE_TAG` は空です。有効化の前に [RELEASE.md](RELEASE.md) の注意を確認してください。
+- Amazonアソシエイト・プログラムの参加者です。ユーザーが検索欄から検索を実行したときに生成するURLに、`dictionary.js` の `ASSOCIATE_TAG`（ストアID: `maylab-22`）を付与します。詳細は [RELEASE.md](RELEASE.md) を確認してください。
 - Amazon側の仕様変更により、検索パラメータや検索結果ページのDOM構造が変わる場合があります。DOM変更時、`content.js` は出品の非表示・ラベル付けを止めますが、パネルやポップアップからの検索は引き続き動作します。
 - この拡張機能は商品情報を収集・外部送信しません。選択した条件のみをChromeのストレージ（`chrome.storage.sync`）に保存します。
 - 検索結果ページの警告ラベルは目安です。ラベルが付かない非正規品や、正規品に誤ってラベルが付く場合があります。

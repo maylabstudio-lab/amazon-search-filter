@@ -260,13 +260,12 @@ function applyGenuineQuery(keyword, settings) {
 }
 
 // Amazon アソシエイトのトラッキングID。
-// v1 では空文字にして「タグを一切付けない」状態で公開する。
-// アソシエイト・プログラムの規約上、ブラウザ拡張機能でのリンク付与は制限や審査の
-// 対象になることがあるため、可否を確認し ID を取得できてから設定すること。
-// 設定すると buildSearchUrl() が検索URLに &tag=<ID> を付ける。
-// 有効化する場合は、あわせてストア掲載文・プライバシーポリシー・ポップアップに
-// アフィリエイト利用の開示を戻すこと（RELEASE.md 参照）。
-const ASSOCIATE_TAG = "";
+// アソシエイト・プログラムに登録済みのストアID。buildSearchUrl() が検索URLに
+// &tag=<ID> を付ける。ユーザーが拡張機能のUI（ポップアップ／ページ内パネル）から
+// 明示的に検索を実行したときにのみ付与し、既存ページへ黙って挿入することはしない。
+// 開示表示は STORE_LISTING.md / PRIVACY_POLICY.md / popup.html / content.js の
+// パネルに記載している。
+const ASSOCIATE_TAG = "maylab-22";
 
 // キーワードと設定から Amazon.co.jp の検索URL文字列を組み立てる。
 // popup.js とページ内パネル（content.js）で共用。発送元・割引率などの追加条件は
