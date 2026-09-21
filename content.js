@@ -5,12 +5,16 @@
 //    パネルの項目・既定値はポップアップ（popup.html/popup.js）と完全に一致させ、
 //    どちらから変更しても chrome.storage.sync 経由で即座に反映されるようにする。
 // 2. 検索結果ページ（/s）では、次のいずれかに該当する出品を
-//      - 「正規品に絞る」ON            → 隠し、パネルに「N件を非表示」と「すべて表示」を出す
-//      - 「カートに入れる」が無い商品を非表示 ON → 同上（別設定として独立に判定）
-//      - OFF                            → 隠さず注意ラベルだけ付ける
+//      - 「正規品に絞る」ON                    → 隠し、パネルに「N件を非表示」と「すべて表示」を出す
+//      - 「カートに入れる」が無い商品を非表示 ON  → 同上（別設定として独立に判定）
+//      - 「本日中にお届け」がない商品を非表示 ON  → 同上（別設定として独立に判定）
+//      - OFF                                    → 隠さず注意ラベルだけ付ける
 //    a. 禁止ワードを含む／商品名の先頭が宣伝文句・装飾記号・メーカー名なしの検索語
 //       そのもの（Amazon の商品名規約 ブランド名＋商品名＋仕様 に反する）
 //    b. 「カートに入れる」ボタンが無く、オプション選択が必要などですぐに購入できない
+//    c. 検索結果カードの配送日情報ブロックに「本日」が含まれない（配送日表示自体が
+//       見つからない場合も対象外とみなす。ユーザーの住所・時間帯に依存する動的な表示の
+//       ため、Amazon の検索URLパラメータでは絞り込めず、表示されている文言で判定する）
 //
 // 除外を Amazon の検索クエリ（-キーワード）で行わないのは、amazon.co.jp が
 // その構文を安定して解釈せず、結果が 0 件になることがあるため。表示側で隠す方が確実。
@@ -52,6 +56,15 @@
   ];
   const ADD_TO_CART_TEXT = "カートに入れる";
 
+  // 配送日情報（「本日お届け」等）が入るブロックの候補セレクタ。
+  // data-cy="title-recipe" と同様、Amazon は配送情報も data-cy="delivery-recipe" で
+  // 出すことが多いが、変わっている場合に備えて汎用クラスにもフォールバックする。
+  const DELIVERY_SELECTORS = [
+    '[data-cy="delivery-recipe"]',
+    ".s-align-children-center.a-color-secondary",
+    ".a-row.a-size-base.a-color-secondary",
+  ];
+
   const COLLAPSE_KEY = "asf-panel-collapsed";
   const DEBUG = new URL(location.href).searchParams.has("asf_debug");
 
@@ -62,10 +75,10 @@
     excludeSuspicious: true,
     genuineEnabled: false,
     genuineCategory: "",
-    amazonFulfilled: false,
     amazonDirect: false,
     discount: "",
     hideNoCart: false,
+    hideNotToday: false,
     showPanel: true,
   };
   let settings = { ...SETTINGS_DEFAULTS };
@@ -144,6 +157,16 @@
     return false;
   }
 
+  // 検索結果内に「本日お届け」等、本日中の配送日表示があるか判定する。
+  // 商品タイトル側の「本日限定」等の宣伝文句と誤判定しないよう、配送日ブロックの
+  // 中だけを見る（ブロックが見つからない＝配送日表示なしとみなし、本日お届け扱いにしない）。
+  function itemArrivesToday(item) {
+    const block = firstMatch(item, DELIVERY_SELECTORS);
+    if (!block) return false;
+    const text = (block.textContent || "").replace(/\s+/g, "");
+    return text.includes("本日");
+  }
+
   function saveSettings(patch) {
     Object.assign(settings, patch);
     try {
@@ -154,31 +177,33 @@
   }
 
   // --- 注意ラベル / 非表示 ---------------------------------------------
-  // 1件の出品が複数の理由（禁止ワード／商品名規約違反／カートに入れる不可）に
-  // 該当することがあるため、該当する理由をすべて文字列の配列で返す。
-  function buildReasons(hits, reason, noCart) {
+  // 1件の出品が複数の理由（禁止ワード／商品名規約違反／カートに入れる不可／
+  // 本日お届け対象外）に該当することがあるため、該当する理由をすべて文字列の配列で返す。
+  function buildReasons(hits, reason, noCart, notToday) {
     const reasons = [];
     if (hits.length) reasons.push(`非正規品の可能性: 「${hits.join("／")}」を含む表記`);
     if (reason) reasons.push(`商品名がAmazonの表記規則（ブランド名＋商品名＋仕様）に沿っていません（${reason}）`);
     if (noCart) reasons.push("「カートに入れる」ボタンがなく、すぐに購入できない可能性があります");
+    if (notToday) reasons.push("本日中にお届けの対象ではない可能性があります");
     return reasons;
   }
 
   // この出品を非表示にすべきか（該当理由ごとに対応する設定がONか）を判定する。
-  function shouldHideEntry(hits, reason, noCart) {
+  function shouldHideEntry(hits, reason, noCart, notToday) {
     return (
       ((hits.length || reason) && settings.excludeSuspicious) ||
-      (noCart && settings.hideNoCart)
+      (noCart && settings.hideNoCart) ||
+      (notToday && settings.hideNotToday)
     );
   }
 
-  function labelItem(item, hits, reason, noCart) {
+  function labelItem(item, hits, reason, noCart, notToday) {
     if (item.querySelector(".asf-warning-label")) return;
 
     const label = document.createElement("div");
     label.className = "asf-warning-label";
     label.setAttribute("role", "note");
-    label.textContent = buildReasons(hits, reason, noCart).join(" ／ ");
+    label.textContent = buildReasons(hits, reason, noCart, notToday).join(" ／ ");
 
     const anchor = firstMatch(item, ["h2", '[data-cy="title-recipe"]']);
     if (anchor && anchor.parentElement) {
@@ -190,10 +215,10 @@
   }
 
   function renderFlagged() {
-    for (const { item, hits, reason, noCart } of flagged) {
-      const hide = shouldHideEntry(hits, reason, noCart) && !revealed;
+    for (const { item, hits, reason, noCart, notToday } of flagged) {
+      const hide = shouldHideEntry(hits, reason, noCart, notToday) && !revealed;
       item.classList.toggle("asf-hidden", hide);
-      if (!hide) labelItem(item, hits, reason, noCart);
+      if (!hide) labelItem(item, hits, reason, noCart, notToday);
     }
     updatePanelStatus();
   }
@@ -218,6 +243,7 @@
         const hits = excludeWords.filter((w) => title.includes(w));
         const policy = titleViolatesPolicy(title, searchKeyword);
         const noCart = settings.hideNoCart && !itemHasAddToCartButton(item);
+        const notToday = settings.hideNotToday && !itemArrivesToday(item);
 
         if (DEBUG) {
           console.debug(LOG_PREFIX, "asf_debug", {
@@ -226,16 +252,17 @@
             hits,
             policy,
             noCart,
+            notToday,
           });
         }
 
-        if (!hits.length && !policy.violated && !noCart) continue;
+        if (!hits.length && !policy.violated && !noCart && !notToday) continue;
 
-        flagged.push({ item, hits, reason: policy.reason, noCart });
-        if (shouldHideEntry(hits, policy.reason, noCart) && !revealed) {
+        flagged.push({ item, hits, reason: policy.reason, noCart, notToday });
+        if (shouldHideEntry(hits, policy.reason, noCart, notToday) && !revealed) {
           item.classList.add("asf-hidden");
         } else {
-          labelItem(item, hits, policy.reason, noCart);
+          labelItem(item, hits, policy.reason, noCart, notToday);
         }
       } catch (err) {
         console.warn(LOG_PREFIX, "商品の処理に失敗:", err);
@@ -250,7 +277,10 @@
     el.innerHTML = [
       '<div class="asf-panel-head">',
       '  <span class="asf-panel-title">正規品フィルタ</span>',
-      '  <button type="button" class="asf-panel-collapse" aria-label="開閉">▾</button>',
+      '  <div class="asf-panel-actions">',
+      '    <button type="button" class="asf-panel-collapse" aria-label="開閉">▾</button>',
+      '    <button type="button" class="asf-panel-close" aria-label="パネルを閉じる" title="パネルを閉じる（ポップアップからいつでも再表示できます）">×</button>',
+      "  </div>",
       "</div>",
       '<div class="asf-panel-body">',
       '  <div class="asf-panel-row">',
@@ -259,10 +289,9 @@
       "  </div>",
       '  <label class="asf-check"><input type="checkbox" class="asf-opt-exclude"> 正規品に絞る（規約外の商品名を検索結果で非表示にする）</label>',
       '  <label class="asf-check"><input type="checkbox" class="asf-opt-no-cart"> 「カートに入れる」がない商品を非表示にする（オプション選択が必要な商品など）</label>',
+      '  <label class="asf-check"><input type="checkbox" class="asf-opt-today"> 本日中にお届けとなる商品にしぼる</label>',
       '  <label class="asf-check"><input type="checkbox" class="asf-opt-genuine"> 「正規品」「国内正規品」を検索語に追加する</label>',
-      '  <label class="asf-check"><input type="checkbox" class="asf-opt-fulfilled"> Amazonが発送する商品にしぼる</label>',
-      '  <label class="asf-check"><input type="checkbox" class="asf-opt-direct"> Amazon直販商品にしぼる</label>',
-      '  <label class="asf-check"><input type="checkbox" class="asf-opt-show-panel" checked> Amazonのページに操作パネルを表示する</label>',
+      '  <label class="asf-check"><input type="checkbox" class="asf-opt-direct"> Amazon.co.jpが販売・発送する商品にしぼる</label>',
       '  <select class="asf-opt-category asf-select"><option value="">カテゴリ: 指定なし</option></select>',
       '  <select class="asf-opt-discount asf-select">',
       '    <option value="">割引率: 指定なし</option>',
@@ -281,10 +310,9 @@
     const kw = el.querySelector(".asf-kw");
     const excludeCb = el.querySelector(".asf-opt-exclude");
     const noCartCb = el.querySelector(".asf-opt-no-cart");
+    const todayCb = el.querySelector(".asf-opt-today");
     const genuineCb = el.querySelector(".asf-opt-genuine");
-    const fulfilledCb = el.querySelector(".asf-opt-fulfilled");
     const directCb = el.querySelector(".asf-opt-direct");
-    const showPanelCb = el.querySelector(".asf-opt-show-panel");
     const categorySel = el.querySelector(".asf-opt-category");
     const discountSel = el.querySelector(".asf-opt-discount");
 
@@ -336,18 +364,17 @@
       resetProcessed();
       scan();
     });
+    todayCb.addEventListener("change", () => {
+      revealed = false;
+      saveSettings({ hideNotToday: todayCb.checked });
+      resetProcessed();
+      scan();
+    });
     genuineCb.addEventListener("change", () => {
       saveSettings({ genuineEnabled: genuineCb.checked });
     });
-    fulfilledCb.addEventListener("change", () => {
-      saveSettings({ amazonFulfilled: fulfilledCb.checked });
-    });
     directCb.addEventListener("change", () => {
       saveSettings({ amazonDirect: directCb.checked });
-    });
-    showPanelCb.addEventListener("change", () => {
-      saveSettings({ showPanel: showPanelCb.checked });
-      ensurePanel();
     });
     categorySel.addEventListener("change", () => {
       saveSettings({ genuineCategory: categorySel.value });
@@ -362,6 +389,13 @@
     el.querySelector(".asf-panel-collapse").addEventListener("click", () => {
       const collapsed = el.getAttribute("data-collapsed") === "true";
       setCollapsed(el, !collapsed);
+    });
+
+    // パネル内に「パネルを表示する」というオン/オフ項目があるのは分かりにくいため、
+    // 非表示への切り替えはヘッダーの×ボタンに一本化する。再表示はポップアップから行う。
+    el.querySelector(".asf-panel-close").addEventListener("click", () => {
+      saveSettings({ showPanel: false });
+      ensurePanel();
     });
 
     let startCollapsed = false;
@@ -389,10 +423,9 @@
     if (!panel) return;
     panel.querySelector(".asf-opt-exclude").checked = settings.excludeSuspicious;
     panel.querySelector(".asf-opt-no-cart").checked = settings.hideNoCart;
+    panel.querySelector(".asf-opt-today").checked = settings.hideNotToday;
     panel.querySelector(".asf-opt-genuine").checked = settings.genuineEnabled;
-    panel.querySelector(".asf-opt-fulfilled").checked = settings.amazonFulfilled;
     panel.querySelector(".asf-opt-direct").checked = settings.amazonDirect;
-    panel.querySelector(".asf-opt-show-panel").checked = settings.showPanel;
     const sel = panel.querySelector(".asf-opt-category");
     const exists = Array.from(sel.options).some((o) => o.value === settings.genuineCategory);
     sel.value = exists ? settings.genuineCategory : "";
@@ -414,8 +447,8 @@
 
     // 「正規品に絞る」と「カートに入れる無しを除外」は独立した設定なので、
     // 該当理由ごとに実際に非表示になる件数／ラベルのみの件数を分けて数える。
-    const hideEligible = flagged.filter(({ hits, reason, noCart }) =>
-      shouldHideEntry(hits, reason, noCart)
+    const hideEligible = flagged.filter(({ hits, reason, noCart, notToday }) =>
+      shouldHideEntry(hits, reason, noCart, notToday)
     ).length;
     const hiddenCount = revealed ? 0 : hideEligible;
     const labeledCount = count - hiddenCount;
@@ -538,10 +571,10 @@
         "excludeSuspicious",
         "genuineCategory",
         "genuineEnabled",
-        "amazonFulfilled",
         "amazonDirect",
         "discount",
         "hideNoCart",
+        "hideNotToday",
         "showPanel",
       ];
       if (!keys.some((k) => changes[k])) return;

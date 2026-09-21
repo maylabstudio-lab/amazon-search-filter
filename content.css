@@ -58,14 +58,29 @@
   letter-spacing: 0.02em;
 }
 
-#asf-panel .asf-panel-collapse {
+#asf-panel .asf-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+#asf-panel .asf-panel-collapse,
+#asf-panel .asf-panel-close {
   border: 0;
   background: transparent;
   color: #6b5c50;
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 6px;
+}
+
+#asf-panel .asf-panel-close {
+  font-size: 15px;
+}
+
+#asf-panel .asf-panel-close:hover {
+  color: #bd4f1b;
 }
 
 #asf-panel .asf-panel-body {
@@ -205,8 +220,13 @@
     background: #2c2521;
   }
 
-  #asf-panel .asf-panel-collapse {
+  #asf-panel .asf-panel-collapse,
+  #asf-panel .asf-panel-close {
     color: #b6a89c;
+  }
+
+  #asf-panel .asf-panel-close:hover {
+    color: #e88a4f;
   }
 
   #asf-panel .asf-kw,

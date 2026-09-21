@@ -307,14 +307,15 @@ async function loadParameterDefinitions() {
   return definitions;
 }
 
-// 「Amazonが発送する商品」「Amazon直販商品」「割引率」の絞り込み条件をURLへ反映する。
+// 「Amazon.co.jpが販売・発送する商品」「割引率」の絞り込み条件をURLへ反映する。
 // popup.js とページ内パネル（content.js）で共用。amazonDirect が有効なときは
 // 呼び出し側が事前に loadParameterDefinitions() で読み込んだ定義を directParam に渡す。
+//
+// 「Amazonが発送する商品」を出品者を問わず絞り込む専用のURLパラメータは公開されておらず、
+// 見つかった手法はすべて出品者IDが Amazon.co.jp 自身（parametor.txt の定義）のものだった
+// ため、「発送」と「直販」は同じ1つの条件として扱う。
 function applyResultFilters(url, settings, directParam) {
   const s = settings || {};
-  if (s.amazonFulfilled) {
-    url.searchParams.set("rh", "p_6:AN1VRQENFRJNWY");
-  }
   if (s.amazonDirect && directParam) {
     url.searchParams.set(directParam[0], directParam[1]);
   }
